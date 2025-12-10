@@ -161,6 +161,107 @@ def send_site_recovery_alert(site_name: str, site_url: str,
     return send_telegram_message(message)
 
 
+def format_status_report_message(sites_status: Dict[str, Dict[str, Any]]) -> str:
+    """
+    格式化整体状态报告消息，分为正常运行和异常运行两部分。
+    
+    Args:
+        sites_status: 站点状态字典，格式为 {url: {name, status, latency_ms, timestamp, ...}}
+        
+    Returns:
+        str: 格式化的状态报告消息
+    """
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    
+    # 分离正常和异常的站点
+    normal_sites = []
+    abnormal_sites = []
+    
+    for url, status_info in sites_status.items():
+        site_name = status_info.get("name", "未知站点")
+        site_status = status_info.get("status", "unknown")
+        latency_ms = status_info.get("latency_ms", 0)
+        consecutive_failures = status_info.get("consecutive_failures", 0)
+        last_check_time = status_info.get("timestamp", 0)
+        
+        # 格式化最后检查时间
+        if last_check_time > 0:
+            last_check_str = time.strftime("%H:%M:%S", time.localtime(last_check_time))
+        else:
+            last_check_str = "未知"
+        
+        site_info = {
+            "name": site_name,
+            "url": url,
+            "latency_ms": latency_ms,
+            "last_check": last_check_str,
+            "consecutive_failures": consecutive_failures
+        }
+        
+        if site_status == "up":
+            normal_sites.append(site_info)
+        else:
+            abnormal_sites.append(site_info)
+    
+    # 构建消息
+    message = f"""📊 <b>UptimeGuard 状态报告</b>
+
+⏰ <b>报告时间:</b> {timestamp}
+📈 <b>总站点数:</b> {len(sites_status)}
+✅ <b>正常站点:</b> {len(normal_sites)}
+❌ <b>异常站点:</b> {len(abnormal_sites)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ <b>正常运行站点 ({len(normal_sites)} 个):</b>"""
+    
+    # 添加正常站点列表
+    if normal_sites:
+        for i, site in enumerate(normal_sites, 1):
+            message += f"""
+{i}. <b>{site['name']}</b>
+   🔗 {site['url']}
+   ⚡ 延迟: {site['latency_ms']} ms
+   🕐 检查时间: {site['last_check']}"""
+    else:
+        message += "\n   (暂无正常运行的站点)"
+    
+    message += "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    # 添加异常站点列表
+    message += f"❌ <b>运行异常站点 ({len(abnormal_sites)} 个):</b>"
+    
+    if abnormal_sites:
+        for i, site in enumerate(abnormal_sites, 1):
+            message += f"""
+{i}. <b>{site['name']}</b>
+   🔗 {site['url']}
+   ⚡ 延迟: {site['latency_ms']} ms
+   🕐 检查时间: {site['last_check']}
+   🔥 连续失败: {site['consecutive_failures']} 次"""
+    else:
+        message += "\n   🎉 所有站点运行正常！"
+    
+    message += "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    message += "\n\n💡 使用 /help 查看更多命令"
+    
+    return message
+
+
+def send_status_report(sites_status: Dict[str, Dict[str, Any]]) -> bool:
+    """
+    发送整体状态报告。
+    
+    Args:
+        sites_status: 站点状态字典
+        
+    Returns:
+        bool: 发送是否成功
+    """
+    message = format_status_report_message(sites_status)
+    return send_telegram_message(message)
+
+
 def test_telegram_connection() -> bool:
     """
     测试 Telegram 连接是否正常。

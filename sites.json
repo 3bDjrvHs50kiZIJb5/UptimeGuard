@@ -1,8 +1,14 @@
 [
+    
     {
         "name": "检验大叔官网",
         "url": "https://www.jianyandashu.com",
-        "keywords": ["检验大叔", "jianyandashu", "html", "body"]
+        "keywords": [
+            "检验大叔",
+            "jianyandashu",
+            "html",
+            "body"
+        ]
     },
     {
         "name": "AI检验大叔",
@@ -24,44 +30,46 @@
         "name": "检验科HR助手",
         "url": "https://hr.jianyandashu.com"
     },
+ 
+  
     {
-        "name": "检验大叔图库",
-        "url": "https://image.jianyandashu.com"
+        "name": "MD 微信",
+        "url": "https://md.jianyandashu.com"
     },
     {
-        "name": "检验大叔图库",
-        "url": "https://tu.jianyandashu.com"
+        "name": "Vaultwarden",
+        "url": "https://vaultwarden.jianyandashu.com"
+    },
+
+    {
+        "name": "coze",
+        "url": "https://coze.jianyandashu.com/health",
+        "keywords": [
+            "Coze API Python Wrapper"
+        ]
     },
     {
-        "name": "检验大叔 uptime",
-        "url": "https://uptime.jianyandashu.com"
+        "name": "niuguanghua",
+        "url": "https://www.niuguanghua.com"
     },
     {
-        "name": "AIAPI牛广华",
+        "name": "AIAPI niuguanghua",
         "url": "https://ai-api.niuguanghua.com"
     },
     {
-        "name": "AIAPI尚雪松",
-        "url": "https://ai-api.shangxuesong.com"
+        "name": "shangxuesong",
+        "url": "https://www.shangxuesong.com"
     },
     {
-        "name": "尚雪松实验室",
+        "name": "shangxuesong",
         "url": "https://lab.shangxuesong.com"
     },
     {
-        "name": "牛广华",
-        "url": "https://www.niuguanghua.com"
+        "name": "AIAPI shangxuesong",
+        "url": "https://ai-api.shangxuesong.com"
     },
     {
         "name": "忍者",
         "url": "https://www.renzhe.org/1/update.xml"
-    },
-    {
-        "name": "Crawl4AI_PY",
-        "url": "https://Crawl4AI.renzhe.org/"
-    },
-    {
-        "name": "尚雪松官网",
-        "url": "https://www.shangxuesong.com"
     }
 ]

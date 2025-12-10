@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 from typing import Dict, List, Any
 from log_manager import get_log_manager
 from telegram_notifier import send_site_down_alert, send_site_recovery_alert
-from telegram_config import get_failure_threshold, is_telegram_configured
+from telegram_config import get_failure_threshold, is_telegram_configured, get_send_status_report
 
 
 # 日志文件路径
@@ -235,11 +235,15 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
         log_line = " ".join(log_parts)
         write_log_line(log_line)
         
-        # Telegram 通知逻辑（简化版本，无去重功能）
+        # Telegram 通知逻辑（增强版本：单个站点通知 + 整体状态报告）
         if is_telegram_configured():
+            # 获取是否发送整体状态报告的配置
+            send_status_report_enabled = get_send_status_report()
+            
             # 发送故障警报（当连续失败次数达到阈值时，但限制在阈值+3次内）
             if result["status"] == "down" and new_failures >= failure_threshold and new_failures <= failure_threshold + 3:
                 try:
+                    # 1. 发送单个站点故障警报
                     send_site_down_alert(
                         site_name=name,
                         site_url=url,
@@ -247,20 +251,68 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
                         error_info=error_info if error_info != 'None' else None
                     )
                     write_log_line(f"[TELEGRAM] 发送故障警报: {name} ({url}) - 连续失败 {new_failures} 次")
+                    
+                    # 2. 根据配置决定是否发送整体状态报告
+                    if send_status_report_enabled:
+                        from telegram_notifier import send_status_report
+                        send_status_report(latest_status_snapshot)
+                        write_log_line(f"[TELEGRAM] 发送整体状态报告 - 包含 {len(latest_status_snapshot)} 个站点")
+                    else:
+                        write_log_line(f"[TELEGRAM] 跳过整体状态报告发送（已禁用）")
+                    
                 except Exception as e:
-                    write_log_line(f"[TELEGRAM ERROR] 发送故障警报失败: {str(e)}")
+                    write_log_line(f"[TELEGRAM ERROR] 发送故障通知失败: {str(e)}")
             
             # 发送恢复通知（当从故障状态恢复到正常状态时）
             elif result["status"] == "up" and previous_status == "down" and previous_failures >= failure_threshold:
                 try:
+                    # 1. 发送单个站点恢复通知
                     send_site_recovery_alert(
                         site_name=name,
                         site_url=url,
                         latency_ms=result["latency_ms"]
                     )
                     write_log_line(f"[TELEGRAM] 发送恢复通知: {name} ({url}) - 响应延迟 {result['latency_ms']} ms")
+                    
+                    # 2. 根据配置决定是否发送整体状态报告
+                    if send_status_report_enabled:
+                        from telegram_notifier import send_status_report
+                        send_status_report(latest_status_snapshot)
+                        write_log_line(f"[TELEGRAM] 发送整体状态报告 - 包含 {len(latest_status_snapshot)} 个站点")
+                    else:
+                        write_log_line(f"[TELEGRAM] 跳过整体状态报告发送（已禁用）")
+                    
                 except Exception as e:
                     write_log_line(f"[TELEGRAM ERROR] 发送恢复通知失败: {str(e)}")
+
+
+def get_current_status_snapshot() -> Dict[str, Dict[str, Any]]:
+    """
+    获取当前所有站点的状态快照。
+    
+    Returns:
+        Dict[str, Dict[str, Any]]: 站点状态字典，格式为 {url: {name, status, latency_ms, timestamp, ...}}
+    """
+    return latest_status_snapshot.copy()
+
+
+def get_sites_summary() -> Dict[str, Any]:
+    """
+    获取站点监控摘要信息。
+    
+    Returns:
+        Dict[str, Any]: 包含总站点数、正常站点数、异常站点数等信息的字典
+    """
+    total_sites = len(latest_status_snapshot)
+    normal_sites = sum(1 for status in latest_status_snapshot.values() if status.get("status") == "up")
+    abnormal_sites = total_sites - normal_sites
+    
+    return {
+        "total_sites": total_sites,
+        "normal_sites": normal_sites,
+        "abnormal_sites": abnormal_sites,
+        "last_update": max((status.get("timestamp", 0) for status in latest_status_snapshot.values()), default=0)
+    }
 
 
 def start_background_polling(get_sites_callable, interval_seconds: int = 30) -> threading.Thread:
