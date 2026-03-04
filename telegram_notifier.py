@@ -163,7 +163,7 @@ def send_site_recovery_alert(site_name: str, site_url: str,
 
 def format_status_report_message(sites_status: Dict[str, Dict[str, Any]]) -> str:
     """
-    格式化整体状态报告消息，分为正常运行和异常运行两部分。
+    格式化整体状态报告消息，仅展示异常站点列表。
     
     Args:
         sites_status: 站点状态字典，格式为 {url: {name, status, latency_ms, timestamp, ...}}
@@ -173,8 +173,7 @@ def format_status_report_message(sites_status: Dict[str, Dict[str, Any]]) -> str
     """
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     
-    # 分离正常和异常的站点
-    normal_sites = []
+    # 仅收集异常站点
     abnormal_sites = []
     
     for url, status_info in sites_status.items():
@@ -198,9 +197,7 @@ def format_status_report_message(sites_status: Dict[str, Dict[str, Any]]) -> str
             "consecutive_failures": consecutive_failures
         }
         
-        if site_status == "up":
-            normal_sites.append(site_info)
-        else:
+        if site_status != "up":
             abnormal_sites.append(site_info)
     
     # 构建消息
@@ -208,28 +205,12 @@ def format_status_report_message(sites_status: Dict[str, Dict[str, Any]]) -> str
 
 ⏰ <b>报告时间:</b> {timestamp}
 📈 <b>总站点数:</b> {len(sites_status)}
-✅ <b>正常站点:</b> {len(normal_sites)}
+✅ <b>正常站点:</b> {len(sites_status) - len(abnormal_sites)}
 ❌ <b>异常站点:</b> {len(abnormal_sites)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-✅ <b>正常运行站点 ({len(normal_sites)} 个):</b>"""
-    
-    # 添加正常站点列表
-    if normal_sites:
-        for i, site in enumerate(normal_sites, 1):
-            message += f"""
-{i}. <b>{site['name']}</b>
-   🔗 {site['url']}
-   ⚡ 延迟: {site['latency_ms']} ms
-   🕐 检查时间: {site['last_check']}"""
-    else:
-        message += "\n   (暂无正常运行的站点)"
-    
-    message += "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    
-    # 添加异常站点列表
-    message += f"❌ <b>运行异常站点 ({len(abnormal_sites)} 个):</b>"
+❌ <b>运行异常站点 ({len(abnormal_sites)} 个):</b>"""
     
     if abnormal_sites:
         for i, site in enumerate(abnormal_sites, 1):
@@ -240,7 +221,7 @@ def format_status_report_message(sites_status: Dict[str, Dict[str, Any]]) -> str
    🕐 检查时间: {site['last_check']}
    🔥 连续失败: {site['consecutive_failures']} 次"""
     else:
-        message += "\n   🎉 所有站点运行正常！"
+        message += "\n   🎉 当前无异常站点"
     
     message += "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     message += "\n\n💡 使用 /help 查看更多命令"

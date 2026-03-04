@@ -1,5 +1,4 @@
 [
-    
     {
         "name": "检验大叔官网",
         "url": "https://www.jianyandashu.com",
@@ -30,8 +29,6 @@
         "name": "检验科HR助手",
         "url": "https://hr.jianyandashu.com"
     },
- 
-  
     {
         "name": "MD 微信",
         "url": "https://md.jianyandashu.com"
@@ -40,7 +37,6 @@
         "name": "Vaultwarden",
         "url": "https://vaultwarden.jianyandashu.com"
     },
-
     {
         "name": "coze",
         "url": "https://coze.jianyandashu.com/health",
@@ -61,15 +57,29 @@
         "url": "https://www.shangxuesong.com"
     },
     {
-        "name": "shangxuesong",
-        "url": "https://lab.shangxuesong.com"
-    },
-    {
         "name": "AIAPI shangxuesong",
         "url": "https://ai-api.shangxuesong.com"
     },
     {
         "name": "忍者",
         "url": "https://www.renzhe.org/1/update.xml"
+    },
+    {
+        "name": "SmartQCPro API",
+        "url": "https://smartqcpro-api.sightnovo.com/"
+    },
+    {
+        "name": "SmartQCPro",
+        "url": "https://smartx.sightnovo.com/smartx//#/login",
+        "keywords": [
+            "myproject"
+        ]
+    },
+    {
+        "name": "SmartQC App",
+        "url": "https://smartqc.app/",
+        "keywords": [
+            "SmartQC"
+        ]
     }
 ]

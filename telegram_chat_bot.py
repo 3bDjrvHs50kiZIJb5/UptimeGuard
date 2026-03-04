@@ -192,7 +192,7 @@ def handle_command(command: str, chat_id: str, user_name: str, bot_token: str) -
 
 📋 <b>可用命令：</b>
 • <code>/help</code> - 显示此帮助信息
-• <code>/status</code> - 获取所有站点状态报告
+• <code>/status</code> - 查看状态报告功能说明
 • <code>/test</code> - 测试机器人连接
 
 💡 <b>使用说明：</b>
@@ -212,44 +212,15 @@ def handle_command(command: str, chat_id: str, user_name: str, bot_token: str) -
         return None
         
     elif command == "/status":
-        try:
-            # 导入监控模块
-            from monitor import get_current_status_snapshot
-            from telegram_notifier import send_status_report
-            
-            # 获取当前状态
-            sites_status = get_current_status_snapshot()
-            
-            if not sites_status:
-                status_message = """📊 <b>UptimeGuard 状态报告</b>
+        status_message = """ℹ️ <b>状态报告功能已关闭</b>
 
-⚠️ <b>当前状态：</b> 暂无监控数据
+根据当前配置，UptimeGuard 不再向 Telegram 发送状态报告。
 
-💡 <b>可能原因：</b>
-• 监控服务未启动
-• 没有配置监控站点
-• 监控数据尚未生成
-
-🔧 <b>建议：</b>
-• 检查 UptimeGuard 是否正常运行
-• 确认已添加监控站点
-• 等待监控数据生成"""
-            else:
-                # 发送状态报告
-                if send_status_report(sites_status):
-                    print(f"✅ 已向 {user_name} 发送状态报告")
-                    return None
-                else:
-                    status_message = "❌ 发送状态报告失败，请稍后重试"
-            
-            if send_message(bot_token, chat_id, status_message):
-                print(f"✅ 已向 {user_name} 发送状态信息")
-                
-        except Exception as e:
-            error_message = f"❌ 获取状态报告时出错: {str(e)}"
-            send_message(bot_token, chat_id, error_message)
-            print(f"❌ 处理状态命令时出错: {str(e)}")
-        
+你仍会收到以下通知：
+• 网站故障通知
+• 网站恢复通知"""
+        if send_message(bot_token, chat_id, status_message):
+            print(f"✅ 已向 {user_name} 发送状态功能说明")
         return None
         
     elif command == "/test":

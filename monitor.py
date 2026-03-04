@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 from typing import Dict, List, Any
 from log_manager import get_log_manager
 from telegram_notifier import send_site_down_alert, send_site_recovery_alert
-from telegram_config import get_failure_threshold, is_telegram_configured, get_send_status_report
+from telegram_config import get_failure_threshold, is_telegram_configured
 
 
 # 日志文件路径
@@ -196,7 +196,10 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
         previous = latest_status_snapshot.get(url, {})
         previous_failures = int(previous.get("consecutive_failures", 0) or 0)
         previous_status = previous.get("status", "unknown")
+        previous_alert_sent = bool(previous.get("alert_sent", False))
         new_failures = previous_failures + 1 if result["status"] == "down" else 0
+        # 同一轮故障周期内只告警一次；恢复后重置
+        alert_sent = previous_alert_sent if result["status"] == "down" else False
 
         latest_status_snapshot[url] = {
             "name": name,
@@ -205,6 +208,7 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
             "ssl_status": result["ssl_status"],
             "status": result["status"],
             "consecutive_failures": new_failures,
+            "alert_sent": alert_sent,
             "latency_ms": result["latency_ms"],
             "timestamp": result["timestamp"],
         }
@@ -235,53 +239,34 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
         log_line = " ".join(log_parts)
         write_log_line(log_line)
         
-        # Telegram 通知逻辑（增强版本：单个站点通知 + 整体状态报告）
+        # Telegram 通知逻辑：仅发送单个站点故障/恢复通知，不发送整体状态报告
         if is_telegram_configured():
-            # 获取是否发送整体状态报告的配置
-            send_status_report_enabled = get_send_status_report()
-            
-            # 发送故障警报（当连续失败次数达到阈值时，但限制在阈值+3次内）
-            if result["status"] == "down" and new_failures >= failure_threshold and new_failures <= failure_threshold + 3:
+            # 发送故障警报：同一轮故障周期内只发送一次
+            if result["status"] == "down" and new_failures >= failure_threshold and not alert_sent:
                 try:
-                    # 1. 发送单个站点故障警报
+                    # 发送单个站点故障警报
                     send_site_down_alert(
                         site_name=name,
                         site_url=url,
                         consecutive_failures=new_failures,
                         error_info=error_info if error_info != 'None' else None
                     )
+                    # 标记该站点本轮故障已发送过警报
+                    latest_status_snapshot[url]["alert_sent"] = True
                     write_log_line(f"[TELEGRAM] 发送故障警报: {name} ({url}) - 连续失败 {new_failures} 次")
-                    
-                    # 2. 根据配置决定是否发送整体状态报告
-                    if send_status_report_enabled:
-                        from telegram_notifier import send_status_report
-                        send_status_report(latest_status_snapshot)
-                        write_log_line(f"[TELEGRAM] 发送整体状态报告 - 包含 {len(latest_status_snapshot)} 个站点")
-                    else:
-                        write_log_line(f"[TELEGRAM] 跳过整体状态报告发送（已禁用）")
-                    
                 except Exception as e:
                     write_log_line(f"[TELEGRAM ERROR] 发送故障通知失败: {str(e)}")
             
             # 发送恢复通知（当从故障状态恢复到正常状态时）
-            elif result["status"] == "up" and previous_status == "down" and previous_failures >= failure_threshold:
+            elif result["status"] == "up" and previous_status == "down" and previous_alert_sent:
                 try:
-                    # 1. 发送单个站点恢复通知
+                    # 发送单个站点恢复通知
                     send_site_recovery_alert(
                         site_name=name,
                         site_url=url,
                         latency_ms=result["latency_ms"]
                     )
                     write_log_line(f"[TELEGRAM] 发送恢复通知: {name} ({url}) - 响应延迟 {result['latency_ms']} ms")
-                    
-                    # 2. 根据配置决定是否发送整体状态报告
-                    if send_status_report_enabled:
-                        from telegram_notifier import send_status_report
-                        send_status_report(latest_status_snapshot)
-                        write_log_line(f"[TELEGRAM] 发送整体状态报告 - 包含 {len(latest_status_snapshot)} 个站点")
-                    else:
-                        write_log_line(f"[TELEGRAM] 跳过整体状态报告发送（已禁用）")
-                    
                 except Exception as e:
                     write_log_line(f"[TELEGRAM ERROR] 发送恢复通知失败: {str(e)}")
 
