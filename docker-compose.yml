@@ -34,7 +34,7 @@ services:
       - TELEGRAM_BOT_TOKEN=7643352681:AAH-4xGlKipYTlklu_3BpYikdaQ_Z6u1Vkk
       - TELEGRAM_CHAT_ID=7843838289
       - TELEGRAM_ENABLED=true
-      - TELEGRAM_FAILURE_THRESHOLD=10
+      - TELEGRAM_FAILURE_THRESHOLD=3
     # 重启策略：除非手动停止，否则总是重启
     restart: unless-stopped
     # 健康检查

@@ -54,9 +54,24 @@ def build_interface() -> gr.Blocks:
     .gradio-container { width: 1200px; max-width: 1200px; margin: 0 auto; }
     """
     with gr.Blocks(title="UptimeGuard", css=custom_css) as demo:
-        gr.Markdown("""
+        config = load_config()
+        failure_threshold_value = int(config.get("failure_threshold", 10) or 10)
+        telegram_enabled_value = bool(config.get("enabled", False))
+        bot_token_set = bool(config.get("bot_token"))
+        chat_id_set = bool(config.get("chat_id"))
+
+        if not telegram_enabled_value:
+            telegram_tip = "❌ Telegram 通知未启用（设置环境变量：TELEGRAM_ENABLED=true）"
+        elif not bot_token_set or not chat_id_set:
+            telegram_tip = "⚠️ Telegram 已启用但配置不完整（需要：TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID）"
+        else:
+            telegram_tip = f"✅ Telegram 已启用（连续失败阈值：{failure_threshold_value} 次）"
+
+        gr.Markdown(f"""
         # UptimeGuard
         ⚡ 实时监控 | 智能告警 | 简单易用 - 让网站监控变得简单 [GitHub 源码](https://github.com/zq535228/UptimeGuard)
+
+        > **配置提示**：{telegram_tip}
         """)
 
         with gr.Column():
@@ -158,7 +173,7 @@ def build_interface() -> gr.Blocks:
                     - `TELEGRAM_BOT_TOKEN`
                     - `TELEGRAM_CHAT_ID`
                     - `TELEGRAM_ENABLED=true`
-                    - `TELEGRAM_FAILURE_THRESHOLD=10`
+                    - `TELEGRAM_FAILURE_THRESHOLD=3`
                     
                     **如何获取 Bot Token:**
                     1. 在 Telegram 中搜索 @BotFather
