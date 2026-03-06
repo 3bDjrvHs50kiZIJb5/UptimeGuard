@@ -4,6 +4,7 @@ app.py
 应用入口：启动监控后台线程并启动 Gradio 界面。
 """
 
+import threading
 from ui import build_interface
 from storage import load_sites
 from monitor import start_background_polling
@@ -11,8 +12,20 @@ from docker_utils import is_docker_environment
 
 
 def main():
-    # 启动后台轮询（模拟监控），默认 30s 一次
+    # 启动后台轮询（模拟监控），默认 60s 一次
     start_background_polling(load_sites, interval_seconds=60)
+
+    # 若已配置 Telegram Bot Token，在后台启动聊天机器人（便于在 Telegram 中发「站点」等获取回复）
+    try:
+        from telegram_config import load_config
+        config = load_config()
+        if config.get("bot_token"):
+            from telegram_chat_bot import start_chat_bot
+            t_bot = threading.Thread(target=start_chat_bot, daemon=True)
+            t_bot.start()
+            print("🤖 Telegram 聊天机器人已在后台启动，可发送「站点」「所有站点」等查询状态")
+    except Exception as e:
+        print(f"⚠️ 启动 Telegram 聊天机器人跳过: {e}")
 
     # 启动 UI
     demo = build_interface()

@@ -229,6 +229,53 @@ def format_status_report_message(sites_status: Dict[str, Dict[str, Any]]) -> str
     return message
 
 
+def format_full_sites_message(sites_status: Dict[str, Dict[str, Any]]) -> str:
+    """
+    格式化「所有站点」状态消息，列出全部站点的名称、URL、状态、延迟、最近检测时间等。
+    用于在 Telegram 中回复「站点」「所有站点」等关键词时使用。
+    
+    Args:
+        sites_status: 站点状态字典，格式为 {url: {name, status, latency_ms, timestamp, ...}}
+        
+    Returns:
+        str: 格式化的消息（Telegram 单条消息上限 4096 字符，过多站点会截断说明）
+    """
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    max_len = 3800  # Telegram 单条上限 4096，留余量
+    lines = [
+        f"📊 <b>UptimeGuard 全部站点状态</b>",
+        "",
+        f"⏰ <b>报告时间:</b> {timestamp}",
+        f"📈 <b>总站点数:</b> {len(sites_status)}",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        ""
+    ]
+    for url, status_info in sites_status.items():
+        name = status_info.get("name", "未知站点")
+        site_status = status_info.get("status", "unknown")
+        latency_ms = status_info.get("latency_ms", 0)
+        consecutive_failures = status_info.get("consecutive_failures", 0)
+        last_check_time = status_info.get("timestamp", 0)
+        if last_check_time > 0:
+            last_check_str = time.strftime("%H:%M:%S", time.localtime(last_check_time))
+        else:
+            last_check_str = "未知"
+        icon = "✅" if site_status == "up" else "❌"
+        line = f"{icon} <b>{name}</b>\n   🔗 {url}\n   ⚡ {latency_ms} ms | 🕐 {last_check_str} | 连续失败 {consecutive_failures} 次"
+        lines.append(line)
+        lines.append("")
+        if sum(len(s) for s in lines) >= max_len:
+            lines.append("… 列表过长已截断，请使用 Web 界面查看完整列表。")
+            break
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    lines.append("\n💡 使用 /help 查看更多命令")
+    out = "\n".join(lines)
+    if len(out) > 4096:
+        out = out[:4090] + "\n…(已截断)"
+    return out
+
+
 def send_status_report(sites_status: Dict[str, Dict[str, Any]]) -> bool:
     """
     发送整体状态报告。

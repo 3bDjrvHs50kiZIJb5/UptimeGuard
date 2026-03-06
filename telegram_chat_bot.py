@@ -10,6 +10,7 @@ import time
 import json
 from typing import Optional, Dict, Any
 from telegram_config import load_config
+from telegram_notifier import format_full_sites_message
 
 
 def get_bot_info(bot_token: str) -> Optional[Dict[str, Any]]:
@@ -134,17 +135,39 @@ def process_message(update: Dict[str, Any], bot_token: str) -> Optional[str]:
     """
     message = update.get("message", {})
     chat = message.get("chat", {})
-    text = message.get("text", "")
+    text = (message.get("text") or "").strip()
     chat_id = str(chat.get("id", ""))
     user_name = message.get("from", {}).get("first_name", "未知用户")
     
-    print(f"📨 收到来自 {user_name} 的消息: {text}")
+    print(f"📨 收到来自 {user_name} 的消息: {text!r}")
     print(f"🆔 聊天 ID: {chat_id}")
     
     # 处理命令
     if text.startswith("/"):
         return handle_command(text, chat_id, user_name, bot_token)
     
+    # 关键词触发：返回所有站点状态（站点、所有站点、全部站点 等）
+    keywords_sites = ("站点", "所有站点", "全部站点", "状态")
+    if text and any(kw in text for kw in keywords_sites):
+        try:
+            from monitor import get_current_status_snapshot
+            sites_status = get_current_status_snapshot()
+            if sites_status:
+                status_message = format_full_sites_message(sites_status)
+                if send_message(bot_token, chat_id, status_message):
+                    print(f"✅ 已向 {user_name} 发送全部站点状态（共 {len(sites_status)} 个）")
+                    return chat_id
+            else:
+                no_data_message = """📊 <b>UptimeGuard 全部站点状态</b>
+
+⏰ 当前暂无监控数据。
+💡 请确保 UptimeGuard 已启动并完成至少一轮检测。"""
+                if send_message(bot_token, chat_id, no_data_message):
+                    return chat_id
+        except Exception as e:
+            print(f"⚠️ 获取站点状态失败: {e}")
+            # 降级为欢迎消息
+        # 若异常或发送失败，继续下发欢迎消息
     # 发送欢迎消息
     welcome_message = f"""👋 你好 {user_name}！
 
@@ -194,6 +217,9 @@ def handle_command(command: str, chat_id: str, user_name: str, bot_token: str) -
 • <code>/help</code> - 显示此帮助信息
 • <code>/status</code> - 查看状态报告功能说明
 • <code>/test</code> - 测试机器人连接
+
+📊 <b>关键词查询：</b>
+• 发送 <b>站点</b>、<b>所有站点</b>、<b>全部站点</b> 或 <b>状态</b> → 返回当前全部站点的监控状态
 
 💡 <b>使用说明：</b>
 • 发送任意消息可获取聊天 ID
