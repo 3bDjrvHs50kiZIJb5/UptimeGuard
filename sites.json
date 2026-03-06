@@ -81,5 +81,18 @@
         "keywords": [
             "SmartQC"
         ]
+    },{
+        "name": "CDC",
+        "url": "https://cdc.cloudpivotlink.com/",
+        "keywords": [
+            "logo.png"
+        ]
+    },
+    {
+        "name": "CloudPivotLink",
+        "url": "https://cloudpivotlink.com/",
+        "keywords": [
+            "产品中心"
+        ]
     }
 ]
