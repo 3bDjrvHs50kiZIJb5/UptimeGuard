@@ -161,6 +161,50 @@ def send_site_recovery_alert(site_name: str, site_url: str,
     return send_telegram_message(message)
 
 
+def format_site_ssl_expiry_message(site_name: str, site_url: str, hours_left: float) -> str:
+    """
+    格式化 SSL 证书即将到期（站点异常）通知消息。
+    
+    Args:
+        site_name: 网站名称
+        site_url: 网站 URL
+        hours_left: 证书剩余有效小时数
+        
+    Returns:
+        str: 格式化的消息
+    """
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    hours_str = f"{hours_left:.1f}"
+    message = f"""🔐 <b>SSL 证书即将到期（站点异常）</b>
+
+📊 <b>网站信息:</b>
+• 名称: {site_name}
+• URL: {site_url}
+• 证书剩余: <b>{hours_str} 小时</b>（小于 48 小时）
+
+⏰ <b>检测时间:</b> {timestamp}
+
+⚠️ <b>状态:</b> 请尽快续期或更换 SSL 证书，避免访问异常。"""
+    return message
+
+
+def send_site_ssl_expiry_alert(site_name: str, site_url: str, hours_left: float) -> bool:
+    """
+    发送 SSL 证书即将到期（站点异常）通知。
+    当证书剩余不足 48 小时时调用。
+    
+    Args:
+        site_name: 网站名称
+        site_url: 网站 URL
+        hours_left: 证书剩余有效小时数
+        
+    Returns:
+        bool: 发送是否成功
+    """
+    message = format_site_ssl_expiry_message(site_name, site_url, hours_left)
+    return send_telegram_message(message)
+
+
 def format_status_report_message(sites_status: Dict[str, Dict[str, Any]]) -> str:
     """
     格式化整体状态报告消息，仅展示异常站点列表。

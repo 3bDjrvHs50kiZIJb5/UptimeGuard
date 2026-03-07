@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse
 from typing import Dict, List, Any, Optional
 from log_manager import get_log_manager
-from telegram_notifier import send_site_down_alert, send_site_recovery_alert
+from telegram_notifier import send_site_down_alert, send_site_recovery_alert, send_site_ssl_expiry_alert
 from telegram_config import get_failure_threshold, is_telegram_configured
 
 
@@ -50,55 +50,55 @@ def write_log_line(line: str) -> None:
     manager.log_message(line)
 
 
-def _parse_cert_expiry_days(not_after_str: str) -> Optional[int]:
+def _parse_cert_expiry(not_after_str: str) -> Optional[tuple]:
     """
-    解析证书 notAfter 字符串，返回距离到期还剩多少天。
+    解析证书 notAfter 字符串，返回 (剩余天数, 剩余小时数)。
     格式通常为 "Mar  7 12:00:00 2026 GMT"（可能有多余空格）。
     若解析失败返回 None。
     """
     try:
-        # 将多个空格归一为单个空格，便于 strptime 解析
         s = " ".join(not_after_str.split())
-        # 使用 GMT 解析，与 UTC 一致
         expiry = datetime.strptime(s, "%b %d %H:%M:%S %Y GMT").replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
         delta = expiry - now
-        return max(0, delta.days)
+        total_seconds = max(0, delta.total_seconds())
+        days = int(total_seconds // 86400)
+        hours = total_seconds / 3600  # 用于 48 小时阈值判断
+        return (days, hours)
     except Exception:
         return None
 
 
 def check_ssl_certificate(url: str) -> Dict[str, Any]:
     """
-    检查 SSL 证书状态（仅对 HTTPS 网站），并计算证书剩余有效天数。
-    返回: {"ssl_status": "up"/"down"/"not_applicable", "ssl_error": str, "ssl_days_left": int|None}
+    检查 SSL 证书状态（仅对 HTTPS 网站），并计算证书剩余有效天数与小时数。
+    返回: {"ssl_status", "ssl_error", "ssl_days_left": int|None, "ssl_hours_left": float|None}
     """
     try:
         parsed_url = urlparse(url)
         if parsed_url.scheme != 'https':
-            return {"ssl_status": "not_applicable", "ssl_error": None, "ssl_days_left": None}
+            return {"ssl_status": "not_applicable", "ssl_error": None, "ssl_days_left": None, "ssl_hours_left": None}
         
-        # 创建 SSL 上下文
         context = ssl.create_default_context()
         context.check_hostname = True
         context.verify_mode = ssl.CERT_REQUIRED
         
-        # 连接到服务器并检查证书
         with socket.create_connection((parsed_url.hostname, parsed_url.port or 443), timeout=10) as sock:
             with context.wrap_socket(sock, server_hostname=parsed_url.hostname) as ssock:
-                # 获取证书信息
                 cert = ssock.getpeercert()
-                days_left = None
+                days_left, hours_left = None, None
                 if cert and "notAfter" in cert:
-                    days_left = _parse_cert_expiry_days(cert["notAfter"])
-                return {"ssl_status": "up", "ssl_error": None, "ssl_days_left": days_left}
+                    parsed = _parse_cert_expiry(cert["notAfter"])
+                    if parsed:
+                        days_left, hours_left = parsed
+                return {"ssl_status": "up", "ssl_error": None, "ssl_days_left": days_left, "ssl_hours_left": hours_left}
                 
     except ssl.SSLError as e:
-        return {"ssl_status": "down", "ssl_error": f"SSL错误: {str(e)}", "ssl_days_left": None}
+        return {"ssl_status": "down", "ssl_error": f"SSL错误: {str(e)}", "ssl_days_left": None, "ssl_hours_left": None}
     except socket.timeout:
-        return {"ssl_status": "down", "ssl_error": "SSL连接超时", "ssl_days_left": None}
+        return {"ssl_status": "down", "ssl_error": "SSL连接超时", "ssl_days_left": None, "ssl_hours_left": None}
     except Exception as e:
-        return {"ssl_status": "down", "ssl_error": f"SSL检查异常: {str(e)}", "ssl_days_left": None}
+        return {"ssl_status": "down", "ssl_error": f"SSL检查异常: {str(e)}", "ssl_days_left": None, "ssl_hours_left": None}
 
 
 def real_check(url: str, keywords: List[str] = None) -> Dict[str, Any]:
@@ -187,7 +187,7 @@ def real_check(url: str, keywords: List[str] = None) -> Dict[str, Any]:
         is_up = False
         http_status = 0
     
-    # 检查 SSL 证书状态（含到期剩余天数）
+    # 检查 SSL 证书状态（含到期剩余天数/小时数）
     ssl_result = check_ssl_certificate(url)
     
     return {
@@ -195,6 +195,7 @@ def real_check(url: str, keywords: List[str] = None) -> Dict[str, Any]:
         "html_keyword": html_keyword,
         "ssl_status": ssl_result["ssl_status"],
         "ssl_days_left": ssl_result.get("ssl_days_left"),
+        "ssl_hours_left": ssl_result.get("ssl_hours_left"),
         "status": "up" if is_up else "down",
         "latency_ms": latency_ms,
         "timestamp": time.time(),
@@ -220,9 +221,15 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
         previous_failures = int(previous.get("consecutive_failures", 0) or 0)
         previous_status = previous.get("status", "unknown")
         previous_alert_sent = bool(previous.get("alert_sent", False))
+        previous_ssl_expiry_alert_sent = bool(previous.get("ssl_expiry_alert_sent", False))
         new_failures = previous_failures + 1 if result["status"] == "down" else 0
-        # 同一轮故障周期内只告警一次；恢复后重置
         alert_sent = previous_alert_sent if result["status"] == "down" else False
+
+        ssl_hours_left = result.get("ssl_hours_left")
+        # 证书剩余 >= 48 小时时重置“已发 SSL 到期告警”标记，以便再次进入 <48h 时能再次告警
+        if ssl_hours_left is not None and ssl_hours_left >= 48:
+            previous_ssl_expiry_alert_sent = False
+        ssl_expiry_alert_sent = previous_ssl_expiry_alert_sent
 
         latest_status_snapshot[url] = {
             "name": name,
@@ -230,9 +237,11 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
             "html_keyword": result["html_keyword"],
             "ssl_status": result["ssl_status"],
             "ssl_days_left": result.get("ssl_days_left"),
+            "ssl_hours_left": ssl_hours_left,
             "status": result["status"],
             "consecutive_failures": new_failures,
             "alert_sent": alert_sent,
+            "ssl_expiry_alert_sent": ssl_expiry_alert_sent,
             "latency_ms": result["latency_ms"],
             "timestamp": result["timestamp"],
         }
@@ -287,7 +296,6 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
             # 发送恢复通知（当从故障状态恢复到正常状态时）
             elif result["status"] == "up" and previous_status == "down" and previous_alert_sent:
                 try:
-                    # 发送单个站点恢复通知
                     send_site_recovery_alert(
                         site_name=name,
                         site_url=url,
@@ -296,6 +304,23 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
                     write_log_line(f"[TELEGRAM] 发送恢复通知: {name} ({url}) - 响应延迟 {result['latency_ms']} ms")
                 except Exception as e:
                     write_log_line(f"[TELEGRAM ERROR] 发送恢复通知失败: {str(e)}")
+
+            # SSL 证书剩余不足 48 小时时发送站点异常通知（同一“进入 <48h”周期内只发一次）
+            elif (
+                ssl_hours_left is not None
+                and ssl_hours_left < 48
+                and not previous_ssl_expiry_alert_sent
+            ):
+                try:
+                    send_site_ssl_expiry_alert(
+                        site_name=name,
+                        site_url=url,
+                        hours_left=ssl_hours_left
+                    )
+                    latest_status_snapshot[url]["ssl_expiry_alert_sent"] = True
+                    write_log_line(f"[TELEGRAM] 发送 SSL 即将到期警报: {name} ({url}) - 剩余 {ssl_hours_left:.1f} 小时")
+                except Exception as e:
+                    write_log_line(f"[TELEGRAM ERROR] 发送 SSL 到期通知失败: {str(e)}")
 
 
 def get_current_status_snapshot() -> Dict[str, Dict[str, Any]]:
