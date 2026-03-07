@@ -28,12 +28,14 @@ def _sites_to_table_rows(sites: List[Dict[str, Any]]) -> List[List[Any]]:
         http_status = snap.get("http_status", "-")
         html_keyword = snap.get("html_keyword", "-")
         ssl_status = snap.get("ssl_status", "-")
+        ssl_days_left = snap.get("ssl_days_left")
+        ssl_days_display = str(ssl_days_left) if ssl_days_left is not None else "-"
         status = snap.get("status", "-")
         consecutive_failures = snap.get("consecutive_failures", 0)
         latency = snap.get("latency_ms", "-")
         ts = snap.get("timestamp")
         ts_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)) if ts else "-"
-        rows.append([name, url, http_status, html_keyword, ssl_status,status, consecutive_failures, latency, ts_str])
+        rows.append([name, url, http_status, html_keyword, ssl_status, ssl_days_display, status, consecutive_failures, latency, ts_str])
     return rows
 
 
@@ -79,9 +81,9 @@ def build_interface() -> gr.Blocks:
                 gr.Markdown("## 网站列表")
 
                 table = gr.Dataframe(
-                    headers=["名称", "URL", "HTTP", "关键字", "SSL", "状态", "失败", "延迟(ms)", "检测时间"],
+                    headers=["名称", "URL", "HTTP", "关键字", "SSL", "SSL到期(天)", "状态", "失败", "延迟(ms)", "检测时间"],
                     value=_sites_to_table_rows(load_sites()),
-                    datatype=["str", "str", "str", "str", "str", "str", "number", "number", "str"],
+                    datatype=["str", "str", "str", "str", "str", "str", "str", "number", "number", "str"],
                     row_count=(0, "dynamic"),
                     interactive=False,
                     wrap=False,

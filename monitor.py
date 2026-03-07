@@ -17,8 +17,9 @@ import random
 import requests
 import ssl
 import socket
+from datetime import datetime, timezone
 from urllib.parse import urlparse
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from log_manager import get_log_manager
 from telegram_notifier import send_site_down_alert, send_site_recovery_alert
 from telegram_config import get_failure_threshold, is_telegram_configured
@@ -49,15 +50,33 @@ def write_log_line(line: str) -> None:
     manager.log_message(line)
 
 
+def _parse_cert_expiry_days(not_after_str: str) -> Optional[int]:
+    """
+    解析证书 notAfter 字符串，返回距离到期还剩多少天。
+    格式通常为 "Mar  7 12:00:00 2026 GMT"（可能有多余空格）。
+    若解析失败返回 None。
+    """
+    try:
+        # 将多个空格归一为单个空格，便于 strptime 解析
+        s = " ".join(not_after_str.split())
+        # 使用 GMT 解析，与 UTC 一致
+        expiry = datetime.strptime(s, "%b %d %H:%M:%S %Y GMT").replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        delta = expiry - now
+        return max(0, delta.days)
+    except Exception:
+        return None
+
+
 def check_ssl_certificate(url: str) -> Dict[str, Any]:
     """
-    检查 SSL 证书状态（仅对 HTTPS 网站）。
-    返回: {"ssl_status": "up"/"down", "ssl_error": str}
+    检查 SSL 证书状态（仅对 HTTPS 网站），并计算证书剩余有效天数。
+    返回: {"ssl_status": "up"/"down"/"not_applicable", "ssl_error": str, "ssl_days_left": int|None}
     """
     try:
         parsed_url = urlparse(url)
         if parsed_url.scheme != 'https':
-            return {"ssl_status": "not_applicable", "ssl_error": None}
+            return {"ssl_status": "not_applicable", "ssl_error": None, "ssl_days_left": None}
         
         # 创建 SSL 上下文
         context = ssl.create_default_context()
@@ -69,14 +88,17 @@ def check_ssl_certificate(url: str) -> Dict[str, Any]:
             with context.wrap_socket(sock, server_hostname=parsed_url.hostname) as ssock:
                 # 获取证书信息
                 cert = ssock.getpeercert()
-                return {"ssl_status": "up", "ssl_error": None}
+                days_left = None
+                if cert and "notAfter" in cert:
+                    days_left = _parse_cert_expiry_days(cert["notAfter"])
+                return {"ssl_status": "up", "ssl_error": None, "ssl_days_left": days_left}
                 
     except ssl.SSLError as e:
-        return {"ssl_status": "down", "ssl_error": f"SSL错误: {str(e)}"}
+        return {"ssl_status": "down", "ssl_error": f"SSL错误: {str(e)}", "ssl_days_left": None}
     except socket.timeout:
-        return {"ssl_status": "down", "ssl_error": "SSL连接超时"}
+        return {"ssl_status": "down", "ssl_error": "SSL连接超时", "ssl_days_left": None}
     except Exception as e:
-        return {"ssl_status": "down", "ssl_error": f"SSL检查异常: {str(e)}"}
+        return {"ssl_status": "down", "ssl_error": f"SSL检查异常: {str(e)}", "ssl_days_left": None}
 
 
 def real_check(url: str, keywords: List[str] = None) -> Dict[str, Any]:
@@ -165,13 +187,14 @@ def real_check(url: str, keywords: List[str] = None) -> Dict[str, Any]:
         is_up = False
         http_status = 0
     
-    # 检查 SSL 证书状态
+    # 检查 SSL 证书状态（含到期剩余天数）
     ssl_result = check_ssl_certificate(url)
     
     return {
         "http_status": http_status,
         "html_keyword": html_keyword,
         "ssl_status": ssl_result["ssl_status"],
+        "ssl_days_left": ssl_result.get("ssl_days_left"),
         "status": "up" if is_up else "down",
         "latency_ms": latency_ms,
         "timestamp": time.time(),
@@ -206,6 +229,7 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
             "http_status": result["http_status"],
             "html_keyword": result["html_keyword"],
             "ssl_status": result["ssl_status"],
+            "ssl_days_left": result.get("ssl_days_left"),
             "status": result["status"],
             "consecutive_failures": new_failures,
             "alert_sent": alert_sent,
@@ -218,7 +242,7 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
         error_info = result.get('error', 'None')
         ssl_error_info = result.get('ssl_error', 'None')
         
-        # 构建详细的日志行
+        # 构建详细的日志行（SSL 到期天数仅对 HTTPS 有效时输出）
         log_parts = [
             f"[{ts_str}]",
             f"name={name}",
@@ -229,6 +253,9 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
             f"keyword={result['html_keyword']}",
             f"latency_ms={result['latency_ms']}"
         ]
+        ssl_days = result.get("ssl_days_left")
+        if ssl_days is not None:
+            log_parts.append(f"ssl_days_left={ssl_days}")
         
         # 添加错误信息（如果有）
         if error_info and error_info != 'None':
