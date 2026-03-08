@@ -101,6 +101,18 @@ def check_ssl_certificate(url: str) -> Dict[str, Any]:
         return {"ssl_status": "down", "ssl_error": f"SSL检查异常: {str(e)}", "ssl_days_left": None, "ssl_hours_left": None}
 
 
+def _resolve_domain_ip(url: str) -> Optional[str]:
+    """解析 URL 中域名指向的 IP，解析失败返回 None。"""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return None
+        return socket.gethostbyname(hostname)
+    except (socket.gaierror, socket.timeout, OSError):
+        return None
+
+
 def real_check(url: str, keywords: List[str] = None) -> Dict[str, Any]:
     """
     真实的网站检查，包括 HTTP 状态、响应时间、SSL 证书等。
@@ -111,6 +123,8 @@ def real_check(url: str, keywords: List[str] = None) -> Dict[str, Any]:
     error_message = None
     http_status = 0
     html_keyword = "-"
+    # 解析域名指向的 IP（在请求前解析，失败不影响后续检查）
+    resolved_ip = _resolve_domain_ip(url)
     
     try:
         # 设置请求头，模拟真实浏览器
@@ -191,6 +205,7 @@ def real_check(url: str, keywords: List[str] = None) -> Dict[str, Any]:
     ssl_result = check_ssl_certificate(url)
     
     return {
+        "ip": resolved_ip,
         "http_status": http_status,
         "html_keyword": html_keyword,
         "ssl_status": ssl_result["ssl_status"],
@@ -233,6 +248,7 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
 
         latest_status_snapshot[url] = {
             "name": name,
+            "ip": result.get("ip"),
             "http_status": result["http_status"],
             "html_keyword": result["html_keyword"],
             "ssl_status": result["ssl_status"],
@@ -252,10 +268,12 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
         ssl_error_info = result.get('ssl_error', 'None')
         
         # 构建详细的日志行（SSL 到期天数仅对 HTTPS 有效时输出）
+        ip_display = result.get("ip") or "-"
         log_parts = [
             f"[{ts_str}]",
             f"name={name}",
             f"url={url}",
+            f"ip={ip_display}",
             f"status={result['status']}",
             f"http={result['http_status']}",
             f"ssl={result['ssl_status']}",

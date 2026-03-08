@@ -18,13 +18,26 @@ from telegram_notifier import test_telegram_connection
 from telegram_chat_bot import start_chat_bot, test_chat_bot
 
 
+def _url_display(url: str) -> str:
+    """显示用：去掉 URL 前的 https:// 或 http://。"""
+    if not url:
+        return url
+    if url.startswith("https://"):
+        return url[8:]
+    if url.startswith("http://"):
+        return url[7:]
+    return url
+
+
 def _sites_to_table_rows(sites: List[Dict[str, Any]]) -> List[List[Any]]:
     """将站点与快照整合为表格需要的二维数组。"""
     rows: List[List[Any]] = []
     for site in sites:
         name = site.get("name", "")
         url = site.get("url", "")
+        url_display = _url_display(url)
         snap = latest_status_snapshot.get(url, {})
+        ip = snap.get("ip") or "-"
         http_status = snap.get("http_status", "-")
         html_keyword = snap.get("html_keyword", "-")
         ssl_status = snap.get("ssl_status", "-")
@@ -33,9 +46,7 @@ def _sites_to_table_rows(sites: List[Dict[str, Any]]) -> List[List[Any]]:
         status = snap.get("status", "-")
         consecutive_failures = snap.get("consecutive_failures", 0)
         latency = snap.get("latency_ms", "-")
-        ts = snap.get("timestamp")
-        ts_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)) if ts else "-"
-        rows.append([name, url, http_status, html_keyword, ssl_status, ssl_days_display, status, consecutive_failures, latency, ts_str])
+        rows.append([name, url_display, ip, http_status, html_keyword, ssl_status, ssl_days_display, status, consecutive_failures, latency])
     return rows
 
 
@@ -81,9 +92,9 @@ def build_interface() -> gr.Blocks:
                 gr.Markdown("## 网站列表")
 
                 table = gr.Dataframe(
-                    headers=["名称", "URL", "HTTP", "关键字", "SSL", "SSL到期(天)", "状态", "失败", "延迟(ms)", "检测时间"],
+                    headers=["名称", "URL", "IP", "HTTP", "关键字", "SSL", "SSL(天)", "状态", "失败", "延迟(ms)"],
                     value=_sites_to_table_rows(load_sites()),
-                    datatype=["str", "str", "str", "str", "str", "str", "str", "number", "number", "str"],
+                    datatype=["str", "str", "str", "str", "str", "str", "str", "str", "number", "number"],
                     row_count=(0, "dynamic"),
                     interactive=False,
                     wrap=False,
