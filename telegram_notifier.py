@@ -161,47 +161,53 @@ def send_site_recovery_alert(site_name: str, site_url: str,
     return send_telegram_message(message)
 
 
-def format_site_ssl_expiry_message(site_name: str, site_url: str, hours_left: float) -> str:
+def format_site_ssl_expiry_message(
+    site_name: str,
+    site_url: str,
+    hours_left: float,
+    days_left: int,
+    cadence: str,
+) -> str:
     """
-    格式化 SSL 证书即将到期（站点异常）通知消息。
-    
-    Args:
-        site_name: 网站名称
-        site_url: 网站 URL
-        hours_left: 证书剩余有效小时数
-        
-    Returns:
-        str: 格式化的消息
+    格式化 SSL 证书即将到期通知消息。
+    cadence: 'hourly'（不足 2 天每小时）、'daily'（2～7 天每日）、'weekly'（8～30 天每周）。
     """
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     hours_str = f"{hours_left:.1f}"
-    message = f"""🔐 <b>SSL 证书即将到期（站点异常）</b>
+    if cadence == "hourly":
+        policy = "剩余不足 2 天：每小时最多提醒一次"
+    elif cadence == "daily":
+        policy = "剩余 2～7 天：每个自然日最多提醒一次"
+    else:
+        policy = "剩余 8～30 天：每 7 天最多提醒一次"
+    message = f"""🔐 <b>SSL 证书即将到期</b>
 
 📊 <b>网站信息:</b>
 • 名称: {site_name}
 • URL: {site_url}
-• 证书剩余: <b>{hours_str} 小时</b>（小于 48 小时）
+• 证书剩余约: <b>{days_left} 天</b>（约 {hours_str} 小时）
+
+📌 <b>提醒策略:</b> {policy}
 
 ⏰ <b>检测时间:</b> {timestamp}
 
-⚠️ <b>状态:</b> 请尽快续期或更换 SSL 证书，避免访问异常。"""
+⚠️ 请尽快续期或更换 SSL 证书。"""
     return message
 
 
-def send_site_ssl_expiry_alert(site_name: str, site_url: str, hours_left: float) -> bool:
+def send_site_ssl_expiry_alert(
+    site_name: str,
+    site_url: str,
+    hours_left: float,
+    days_left: int = 0,
+    cadence: str = "weekly",
+) -> bool:
     """
-    发送 SSL 证书即将到期（站点异常）通知。
-    当证书剩余不足 48 小时时调用。
-    
-    Args:
-        site_name: 网站名称
-        site_url: 网站 URL
-        hours_left: 证书剩余有效小时数
-        
-    Returns:
-        bool: 发送是否成功
+    发送 SSL 证书即将到期通知（由 monitor 按 7 天/30 天策略调度）。
     """
-    message = format_site_ssl_expiry_message(site_name, site_url, hours_left)
+    message = format_site_ssl_expiry_message(
+        site_name, site_url, hours_left, days_left, cadence
+    )
     return send_telegram_message(message)
 
 
