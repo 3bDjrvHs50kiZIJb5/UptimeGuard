@@ -1,11 +1,44 @@
-# UptimeGuard 应用镜像 Dockerfile
-# 基于预构建的基础镜像，只复制应用代码
-FROM uptimeguard-base:latest
+# UptimeGuard 多阶段构建：先构建运行环境与依赖（base），再复制应用代码。
+# 避免 FROM uptimeguard-base:latest 在并行构建时去 Docker Hub 拉取不存在的镜像。
 
-# 设置工作目录
+# ---------- base：系统依赖、pip、非 root 用户 ----------
+FROM python:3.11-slim AS base
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV DEBIAN_FRONTEND=noninteractive
+
 WORKDIR /app
 
-# 复制项目文件到工作目录
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    ca-certificates \
+    net-tools \
+    iputils-ping \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+RUN pip install --upgrade pip
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN mkdir -p /app/logs && chmod 755 /app
+
+RUN useradd --create-home --shell /bin/bash uptimeguard \
+    && chown -R uptimeguard:uptimeguard /app
+
+USER uptimeguard
+
+ENV PYTHONPATH=/app
+
+# ---------- app：业务代码 ----------
+FROM base
+
+WORKDIR /app
+
 COPY app.py .
 COPY monitor.py .
 COPY ui.py .
@@ -16,25 +49,19 @@ COPY telegram_config.py .
 COPY telegram_notifier.py .
 COPY telegram_chat_bot.py .
 
-# 复制配置文件和依赖
 COPY requirements.txt .
 COPY sites.json .
 
-# 创建必要的目录并设置权限
+USER root
 RUN mkdir -p /app/logs && chmod 777 /app/logs
+USER uptimeguard
 
-# 设置 Python 路径，确保可以找到当前目录的模块
 ENV PYTHONPATH=/app
-
-# 设置环境变量
 ENV DOCKER_RUN=true
 
-# 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:7863/ || exit 1
 
-# 暴露端口
 EXPOSE 7863
 
-# 默认命令：运行 UptimeGuard 应用
 CMD ["python", "app.py"]

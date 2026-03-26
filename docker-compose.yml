@@ -1,51 +1,29 @@
 # UptimeGuard Docker Compose 配置文件
 # 用于简化 Docker 镜像的构建和运行
-version: '3.8'
 
 services:
-  # 基础镜像构建服务
-  base:
-    build:
-      context: .
-      dockerfile: Dockerfile.base
-    image: uptimeguard-base:latest
-    # 基础镜像不需要运行，只用于构建
-    command: /bin/true
-
-  # UptimeGuard 应用镜像构建和运行服务
   uptimeguard:
     build:
       context: .
       dockerfile: Dockerfile
     image: uptimeguard-app:latest
     container_name: uptimeguard
-    # 端口映射：将容器的 7863 端口映射到宿主机的 7863 端口
     ports:
       - "7863:7863"
-    # 挂载配置文件和日志目录到宿主机，方便查看和修改
     volumes:
       - ./sites.json:/app/sites.json
       - ./logs:/app/logs
-    # 环境变量配置
     environment:
       - PYTHONUNBUFFERED=1
       - DOCKER_RUN=true
-      # Telegram 配置（通过环境变量设置）
       - TELEGRAM_BOT_TOKEN=7643352681:AAH-4xGlKipYTlklu_3BpYikdaQ_Z6u1Vkk
       - TELEGRAM_CHAT_ID=7843838289
       - TELEGRAM_ENABLED=true
       - TELEGRAM_FAILURE_THRESHOLD=3
-    # 重启策略：除非手动停止，否则总是重启
     restart: unless-stopped
-    # 健康检查
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7863/"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    # 依赖基础镜像
-    depends_on:
-      - base
-    # 网络模式（如果需要外部网络访问）
-    # network_mode: "host"
