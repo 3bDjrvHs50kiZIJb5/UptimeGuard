@@ -170,16 +170,14 @@ def format_site_ssl_expiry_message(
 ) -> str:
     """
     格式化 SSL 证书即将到期通知消息。
-    cadence: 'hourly'（不足 2 天每小时）、'daily'（2～7 天每日）、'weekly'（8～30 天每周）。
+    cadence: 'hourly'（不足 2 天每小时）、'daily'（2～7 天每日）。
     """
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     hours_str = f"{hours_left:.1f}"
     if cadence == "hourly":
         policy = "剩余不足 2 天：每小时最多提醒一次"
-    elif cadence == "daily":
-        policy = "剩余 2～7 天：每个自然日最多提醒一次"
     else:
-        policy = "剩余 8～30 天：每 7 天最多提醒一次"
+        policy = "剩余 2～7 天：每个自然日最多提醒一次"
     message = f"""🔐 <b>SSL 证书即将到期</b>
 
 📊 <b>网站信息:</b>
@@ -200,10 +198,10 @@ def send_site_ssl_expiry_alert(
     site_url: str,
     hours_left: float,
     days_left: int = 0,
-    cadence: str = "weekly",
+    cadence: str = "daily",
 ) -> bool:
     """
-    发送 SSL 证书即将到期通知（由 monitor 按 7 天/30 天策略调度）。
+    发送 SSL 证书即将到期通知（由 monitor 按小时/自然日策略调度，8～30 天不推送）。
     """
     message = format_site_ssl_expiry_message(
         site_name, site_url, hours_left, days_left, cadence

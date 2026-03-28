@@ -24,10 +24,9 @@ from log_manager import get_log_manager
 from telegram_notifier import send_site_down_alert, send_site_recovery_alert, send_site_ssl_expiry_alert
 from telegram_config import get_failure_threshold, is_telegram_configured
 
-# SSL 到期 Telegram 策略：<2 天每小时最多 1 次；2～7 天按本地日每天最多 1 次；8～30 天每 7 天最多 1 次；>30 天不推送并重置记录
+# SSL 到期 Telegram 策略：<2 天每小时最多 1 次；2～7 天按本地日每天最多 1 次；8～30 天不推送；>30 天不推送并重置记录
 SSL_EXPIRY_HOURLY_THRESHOLD_HOURS = 48  # 小于 2 天（严格按小时算）
 SSL_EXPIRY_HOURLY_INTERVAL_SEC = 3600
-SSL_EXPIRY_WEEKLY_INTERVAL_SEC = 7 * 86400
 
 # 日志文件路径
 LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
@@ -92,7 +91,7 @@ def _should_send_ssl_expiry_telegram(
 ) -> bool:
     """
     是否应发送 SSL 到期 Telegram：<2 天每小时至多一次；2～7 天每自然日至多一次；
-    8～30 天每 7 天至多一次。last_alert_ts: 上次发送 Unix 时间戳，0 表示从未发送。
+    8～30 天不推送。last_alert_ts: 上次发送 Unix 时间戳，0 表示从未发送。
     """
     if ssl_days_left is not None and ssl_days_left > 30:
         return False
@@ -116,22 +115,18 @@ def _should_send_ssl_expiry_telegram(
         last_day = time.strftime("%Y-%m-%d", time.localtime(last_alert_ts))
         today = time.strftime("%Y-%m-%d", time.localtime(now))
         return last_day != today
-    # 8～30 天：每周一次（距上次发送满 7 天）
-    if last_alert_ts <= 0:
-        return True
-    return (now - last_alert_ts) >= SSL_EXPIRY_WEEKLY_INTERVAL_SEC
+    # 8～30 天：不推送
+    return False
 
 
 def _ssl_expiry_cadence(
     ssl_hours_left: Optional[float],
     ssl_days_left: Optional[int],
 ) -> str:
-    """用于 Telegram 文案与日志：hourly / daily / weekly。"""
+    """用于 Telegram 文案与日志：hourly / daily（仅在会发送时调用）。"""
     if _ssl_expiry_in_hourly_window(ssl_hours_left, ssl_days_left):
         return "hourly"
-    if ssl_days_left is not None and ssl_days_left <= 7:
-        return "daily"
-    return "weekly"
+    return "daily"
 
 
 def check_ssl_certificate(url: str) -> Dict[str, Any]:
@@ -394,7 +389,7 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
                 except Exception as e:
                     write_log_line(f"[TELEGRAM ERROR] 发送恢复通知失败: {str(e)}")
 
-            # SSL 到期：<2 天每小时最多一次；2～7 天每日最多一次；8～30 天每 7 天最多一次（需已配置 Telegram）
+            # SSL 到期：<2 天每小时最多一次；2～7 天每日最多一次；8～30 天不推送（需已配置 Telegram）
             elif _should_send_ssl_expiry_telegram(
                 ssl_days_left, ssl_hours_left, previous_ssl_expiry_last_alert_ts
             ):
@@ -412,10 +407,8 @@ def poll_once(sites: List[Dict[str, Any]]) -> None:
                     latest_status_snapshot[url]["ssl_expiry_last_alert_ts"] = now_ts
                     if cadence == "hourly":
                         cadence_cn = "每小时"
-                    elif cadence == "daily":
-                        cadence_cn = "每日"
                     else:
-                        cadence_cn = "每周"
+                        cadence_cn = "每日"
                     if ssl_days_left is not None:
                         remain_desc = f"约 {ssl_days_left} 天"
                     else:

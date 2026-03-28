@@ -92,5 +92,13 @@
     {
         "name": "CloudPivotLink",
         "url": "https://cloudpivotlink.com/"
+    },
+    {
+        "name": "ForwardHub",
+        "url": "http://forwardhub.jianyandashu.com/",
+        "keywords": [
+            "ForwardHub",
+            "多文件转发器"
+        ]
     }
 ]
