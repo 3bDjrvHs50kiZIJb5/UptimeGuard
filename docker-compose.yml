@@ -19,7 +19,7 @@ services:
       - TELEGRAM_BOT_TOKEN=7643352681:AAH-4xGlKipYTlklu_3BpYikdaQ_Z6u1Vkk
       - TELEGRAM_CHAT_ID=7843838289
       - TELEGRAM_ENABLED=true
-      - TELEGRAM_FAILURE_THRESHOLD=3
+      - TELEGRAM_FAILURE_THRESHOLD=10
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7863/"]

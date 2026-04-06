@@ -186,7 +186,7 @@ def build_interface() -> gr.Blocks:
                     - `TELEGRAM_BOT_TOKEN`
                     - `TELEGRAM_CHAT_ID`
                     - `TELEGRAM_ENABLED=true`
-                    - `TELEGRAM_FAILURE_THRESHOLD=3`
+                    - `TELEGRAM_FAILURE_THRESHOLD=10`
                     
                     **如何获取 Bot Token:**
                     1. 在 Telegram 中搜索 @BotFather

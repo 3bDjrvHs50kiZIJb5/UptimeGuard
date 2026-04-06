@@ -142,7 +142,7 @@ UptimeGuard/
 export TELEGRAM_BOT_TOKEN="your_bot_token"
 export TELEGRAM_CHAT_ID="your_chat_id"
 export TELEGRAM_ENABLED="true"
-export TELEGRAM_FAILURE_THRESHOLD="3"
+export TELEGRAM_FAILURE_THRESHOLD="10"
 ```
 
 ## 🔧 使用说明
