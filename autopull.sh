@@ -13,7 +13,7 @@ set -uo pipefail
 # cron 环境 PATH 较窄，这里显式补齐 docker/git 等常用路径
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
-REPO_DIR="/home/ubuntu/UptimeGuard"
+REPO_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 LOG_FILE="${REPO_DIR}/autopull.log"
 LOCK_FILE="${REPO_DIR}/.autopull.lock"
 BRANCH="main"
