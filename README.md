@@ -97,6 +97,8 @@ UptimeGuard/
 ├── docker_utils.py          # Docker 环境检测
 ├── sites.json               # 监控站点配置
 ├── requirements.txt         # Python 依赖
+├── autopull.sh              # 服务器定时拉取+部署脚本
+├── docker-auto.sh           # Docker 自动构建/启动脚本
 ├── logs/                    # 日志文件目录
 │   └── uptime.log          # 监控日志
 └── README.md               # 项目说明
@@ -192,6 +194,46 @@ docker run -d \
   -v $(pwd)/logs:/app/logs \
   uptimeguard
 ```
+
+## 🔄 自动拉取与部署 (autopull.sh)
+
+`autopull.sh` 用于在服务器上定时检查仓库更新，若有新提交则自动 `git reset --hard` 到最新版本并触发 `docker-auto.sh` 重建容器。
+
+### 特性
+- **cron 模式**：无新提交时直接退出，不做任何操作
+- **强制模式**：`--force` / `-f`，无论有无新提交都重跑 `docker-auto.sh`
+- **TTY 自动识别**：手动在终端运行时自动启用强制模式
+- **flock 互斥**：通过 `.autopull.lock` 防止多次任务重叠执行
+- **PATH 补齐**：针对 cron 精简环境，显式补齐 docker/git 常用路径
+
+### 服务器部署步骤
+
+1. **赋予执行权限**
+```bash
+chmod +x /home/ubuntu/UptimeGuard/autopull.sh
+```
+
+2. **加入 crontab**（运行 `crontab -e` 编辑）
+```cron
+*/20 * * * * /home/ubuntu/UptimeGuard/autopull.sh >> /home/ubuntu/UptimeGuard/autopull.log 2>&1
+```
+上面这条表示每 20 分钟检查一次仓库更新；如需调整频率可修改 cron 表达式。
+
+3. **手动触发部署**
+```bash
+# 仅在有新提交时触发部署
+/home/ubuntu/UptimeGuard/autopull.sh
+
+# 强制重新构建并启动容器（无论是否有新提交）
+/home/ubuntu/UptimeGuard/autopull.sh --force
+```
+
+4. **查看运行日志**
+```bash
+tail -f /home/ubuntu/UptimeGuard/autopull.log
+```
+
+> 注意：脚本中的 `REPO_DIR` 已改为 **自动识别脚本所在目录**（通过 `readlink -f` 解析），无需按部署路径手动修改；仅 `BRANCH` 仍默认为 `main`，分支不同时请修改脚本顶部的变量。
 
 ## 🔍 故障排除
 

@@ -13,10 +13,7 @@
         "name": "AI检验大叔",
         "url": "https://ai.jianyandashu.com"
     },
-    {
-        "name": "AIAPI",
-        "url": "https://ai-api.jianyandashu.com"
-    },
+
     {
         "name": "电子记录",
         "url": "https://f.jianyandashu.com"
@@ -37,29 +34,8 @@
         "name": "Vaultwarden",
         "url": "https://vaultwarden.jianyandashu.com"
     },
-    {
-        "name": "coze",
-        "url": "https://coze.jianyandashu.com/health",
-        "keywords": [
-            "Coze API Python Wrapper"
-        ]
-    },
-    {
-        "name": "niuguanghua",
-        "url": "https://www.niuguanghua.com"
-    },
-    {
-        "name": "AIAPI niuguanghua",
-        "url": "https://ai-api.niuguanghua.com"
-    },
-    {
-        "name": "shangxuesong",
-        "url": "https://www.shangxuesong.com"
-    },
-    {
-        "name": "AIAPI shangxuesong",
-        "url": "https://ai-api.shangxuesong.com"
-    },
+
+
     {
         "name": "忍者",
         "url": "https://www.renzhe.org/1/update.xml"
@@ -95,7 +71,7 @@
     },
     {
         "name": "ForwardHub",
-        "url": "http://forwardhub.jianyandashu.com/",
+        "url": "https://forwardhub.jianyandashu.com/",
         "keywords": [
             "ForwardHub",
             "多文件转发器"

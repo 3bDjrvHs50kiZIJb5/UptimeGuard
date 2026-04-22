@@ -2,3 +2,5 @@
 /.specstory
 /.venv
 /__pycache__
+/autopull.log
+/.autopull.lock
